@@ -1,0 +1,369 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+
+<script src="webgl-debug.js"></script>
+<script src="gl-matrix-min.js"></script>
+
+<script id="vShader" type="x-shader/x-vertex">
+	attribute vec4 aVertexPosition; 
+	attribute vec4 aVertexColor; 
+	
+	uniform mat4 uTransformMatrix;
+	uniform mat4 uPerspectiveViewMatrix;
+	
+	varying vec4 vColor;
+	
+	void main() {
+		gl_Position = uPerspectiveViewMatrix * uTransformMatrix * aVertexPosition; 
+		vColor = aVertexColor;  
+	} 
+</script>
+
+<script id="fShader" type="x-shader/x-fragment">
+	precision mediump float; 
+	varying vec4 vColor; 
+	void main() {
+		gl_FragColor = vColor;
+	}
+</script>
+
+
+<script>
+	var gl; 
+	var canvas; 
+	var shaderProgram; 
+	var vertexBuffer; 
+	var colorBuffer; 
+	var indexBuffer; 
+	var requestId=0; 
+	 
+	function createGLContext(canvas) {
+		var context = null;
+
+		context = canvas.getContext("webgl");  
+		if (!context)
+			context = canvas.getContext("experimental-webgl"); 
+		if (context) {
+			context.viewportWidth = canvas.width; 
+			context.viewportHeight = canvas.height; 
+		} 
+		else {
+			alert("Failed to create WebGL context!");
+		}
+		return context;
+	}
+	
+	function loadShader(type, shaderSource) {
+		var shader = gl.createShader(type); 
+		gl.shaderSource(shader, shaderSource); 
+		gl.compileShader(shader); 
+
+		if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) { 
+			alert("Error compiling shader" + gl.getShaderInfoLog(shader)); 
+			gl.deleteShader(shader);  
+			return null;
+		}
+		return shader;  
+	}
+	
+	function setupShaders() {
+		var vertexShaderSource = document.getElementById("vShader").textContent; 
+		
+		var fragmentShaderSource = document.getElementById("fShader").textContent; 
+		
+		var vertexShader = loadShader(gl.VERTEX_SHADER, vertexShaderSource); 
+		var fragmentShader = loadShader(gl.FRAGMENT_SHADER, fragmentShaderSource); 
+
+		shaderProgram = gl.createProgram(); 
+		gl.attachShader(shaderProgram, vertexShader); 
+		gl.attachShader(shaderProgram, fragmentShader); 
+		gl.linkProgram(shaderProgram); 
+
+		if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+			alert("Failed to setup shaders");
+		}
+
+		gl.useProgram(shaderProgram); 
+
+		shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition"); 
+
+		gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute); 
+		
+		shaderProgram.vertexColorAttribute = gl.getAttribLocation(shaderProgram, "aVertexColor"); 
+		gl.enableVertexAttribArray(shaderProgram.vertexColorAttribute);
+		
+		shaderProgram.transformationUniform = gl.getUniformLocation(shaderProgram, "uTransformMatrix"); 
+		shaderProgram.perspectiveViewUniform = gl.getUniformLocation(shaderProgram, "uPerspectiveViewMatrix");
+	}
+	
+	function setupBuffers()
+	{
+		vertexBuffer = gl.createBuffer(); 
+		gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer); 
+		
+		var cubeVertices = [
+							// Front face
+						  -0.1, -0.1,  0.1, 1,
+						   0.1, -0.1,  0.1, 1,
+						   0.1,  0.1,  0.1, 1,
+						  -0.1,  0.1,  0.1, 1,
+						  
+						  // Back face
+						  -0.1, -0.1, -0.1, 1,
+						  -0.1,  0.1, -0.1, 1,
+						   0.1,  0.1, -0.1, 1,
+						   0.1, -0.1, -0.1, 1,
+						  
+						  // Top face
+						  -0.1,  0.1, -0.1, 1,
+						  -0.1,  0.1,  0.1, 1,
+						   0.1,  0.1,  0.1, 1,
+						   0.1,  0.1, -0.1, 1,
+						  
+						  // Bottom face
+						  -0.1, -0.1, -0.1, 1,
+						   0.1, -0.1, -0.1, 1,
+						   0.1, -0.1,  0.1, 1,
+						  -0.1, -0.1,  0.1, 1,
+						  
+						  // Right face
+						   0.1, -0.1, -0.1, 1,
+						   0.1,  0.1, -0.1, 1,
+						   0.1,  0.1,  0.1, 1,
+						   0.1, -0.1,  0.1, 1,
+						  
+						  // Left face
+						  -0.1, -0.1, -0.1, 1,
+						  -0.1, -0.1,  0.1, 1,
+						  -0.1,  0.1,  0.1, 1,
+						  -0.1,  0.1, -0.1, 1
+							];
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(cubeVertices),	gl.STATIC_DRAW);
+		vertexBuffer.itemSize = 4; 
+		vertexBuffer.numberOfItems = 24;
+		
+		colorBuffer=gl.createBuffer(); 
+		gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+		var colorVertices = [
+							0, 0, 1, 1,
+							0, 0, 1, 1,
+							0, 0, 1, 1,
+							0, 0, 1, 1,
+							
+							0, 0, 0.8, 1,
+							0, 0, 0.8, 1,
+							0, 0, 0.8, 1,
+							0, 0, 0.8, 1,
+							
+							0, 0, 0.6, 1,
+							0, 0, 0.6, 1,
+							0, 0, 0.6, 1,
+							0, 0, 0.6, 1,
+							
+							0, 0, 0.7, 1,
+							0, 0, 0.7, 1,
+							0, 0, 0.7, 1,
+							0, 0, 0.7, 1,
+							
+							0, 0, 0.5, 1,
+							0, 0, 0.5, 1,
+							0, 0, 0.5, 1,
+							0, 0, 0.5, 1,
+							
+							0, 0, 0.35, 1,
+							0, 0, 0.35, 1,
+							0, 0, 0.35, 1,
+							0, 0, 0.35, 1
+							];
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colorVertices),	gl.STATIC_DRAW);
+		colorBuffer.itemSize=4;
+		colorBuffer.numberOfItems=24;
+		
+		indexBuffer = gl.createBuffer(); 
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,indexBuffer); 
+		var indexMatrix = [
+							0,  1,  2,      0,  2,  3,    // front
+							4,  5,  6,      4,  6,  7,    // back
+							8,  9,  10,     8,  10, 11,   // top
+							12, 13, 14,     12, 14, 15,   // bottom
+							16, 17, 18,     16, 18, 19,   // right
+							20, 21, 22,     20, 22, 23    // left
+							];
+		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(indexMatrix),gl.STATIC_DRAW);   
+		indexBuffer.itemSize = 1; 
+		indexBuffer.numberOfItems = 36;  
+	}
+	
+	function draw()
+	{
+		gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); 
+		
+		//cube buffers
+		gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+		gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, vertexBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		
+		gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+		gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, colorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,indexBuffer);
+		//----
+		
+		//make camera
+		var pvMatrix = mat4.create();
+		var pMatrix = mat4.create();
+		var vMatrix = mat4.create();
+		
+		mat4.lookAt(vMatrix, [2,2,2], [0,0,0], [0,1,0]);
+		mat4.perspective(pMatrix, Math.PI/3 , 1, 0.01, 10);
+		
+		mat4.mul(pvMatrix, pMatrix, vMatrix);
+		
+		gl.uniformMatrix4fv(shaderProgram.perspectiveViewUniform, false, new Float32Array(pvMatrix));
+		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+		//----
+		
+		//draw cube
+		var temp=mat4.create();
+		mat4.fromTranslation(temp,[0,0,0]);
+		gl.uniformMatrix4fv(shaderProgram.transformationUniform, false, new Float32Array(temp)); 
+		gl.drawElements(gl.TRIANGLES,indexBuffer.numberOfItems,gl.UNSIGNED_SHORT, 0);
+		//----
+	}
+	
+	function redraw()
+	{
+		//buffers
+		gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+		gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, vertexBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		
+		gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+		gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, colorBuffer.itemSize, gl.FLOAT, false, 0, 0); 
+		
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,indexBuffer); 
+		//----
+		
+		//get from html
+		var camView = parseFloat(document.getElementById("camView").value);
+		var cameraDistance = parseFloat(document.getElementById("cameraDistance").value);
+		//----
+		
+		//camera
+		var pvMatrix = mat4.create();
+		var vMatrix = mat4.create();
+		
+		if(document.getElementById("1").checked){
+			mat4.lookAt(vMatrix, [-cameraDistance, -cameraDistance, -cameraDistance], [0, 0, 0], [0, 0, 1]);
+			var pMatrix = mat4.create();
+			mat4.perspective(pMatrix, camView*Math.PI/180.0, 1, 0.001, 10*cameraDistance);
+		}
+		else if(document.getElementById('2').checked){
+			mat4.lookAt(vMatrix, [-cameraDistance, -cameraDistance, cameraDistance], [0, 0, 0], [0, 0, 1]);
+			var pMatrix = mat4.create();
+			mat4.perspective(pMatrix, camView*Math.PI/180.0, 1, 0.001, 10*cameraDistance);
+		}
+		else if(document.getElementById("3").checked){
+			mat4.lookAt(vMatrix, [-cameraDistance, cameraDistance, -cameraDistance], [0, 0, 0], [0, 0, 1]);
+			var pMatrix = mat4.create();
+			mat4.perspective(pMatrix, camView*Math.PI/180.0, 1, 0.001, 10*cameraDistance);
+		}
+		else if(document.getElementById("4").checked){
+			mat4.lookAt(vMatrix, [-cameraDistance, cameraDistance, cameraDistance], [0, 0, 0], [0, 0, 1]);
+			var pMatrix = mat4.create();
+			mat4.perspective(pMatrix, camView*Math.PI/180.0, 1, 0.001, 10*cameraDistance);
+		}
+		else if(document.getElementById("5").checked){
+			mat4.lookAt(vMatrix, [cameraDistance, -cameraDistance, -cameraDistance], [0, 0, 0], [0, 0, 1]);	
+			var pMatrix = mat4.create();
+			mat4.perspective(pMatrix, camView*Math.PI/180.0, 1, 0.001, 10*cameraDistance);
+		}
+		else if(document.getElementById("6").checked){
+			mat4.lookAt(vMatrix, [cameraDistance, -cameraDistance, cameraDistance], [0, 0, 0], [0, 0, 1]);			
+			var pMatrix = mat4.create();
+			mat4.perspective(pMatrix, camView*Math.PI/180.0, 1, 0.001, 10*cameraDistance);
+		}
+		else if(document.getElementById("7").checked){
+			mat4.lookAt(vMatrix, [cameraDistance, cameraDistance, -cameraDistance], [0, 0, 0], [0, 0, 1]);			
+			var pMatrix = mat4.create();
+			mat4.perspective(pMatrix, camView*Math.PI/180.0, 1, 0.001, 10*cameraDistance);
+		}
+		else if(document.getElementById("8").checked){
+			mat4.lookAt(vMatrix, [cameraDistance, cameraDistance, cameraDistance], [0, 0, 0], [0, 0, 1]);			
+			var pMatrix = mat4.create();
+			mat4.perspective(pMatrix, camView*Math.PI/180.0, 1, 0.001, 10*cameraDistance);
+		}
+		else{
+			mat4.lookAt(vMatrix, [2, 2, 2], [0, 0, 0], [0, 0, 1]);	
+			var pMatrix = mat4.create();
+			mat4.perspective(pMatrix, Math.PI/2, 1, 0.01, 10);
+		}
+		
+		mat4.multiply(pvMatrix, pMatrix, vMatrix);
+		
+		gl.uniformMatrix4fv(shaderProgram.perspectiveViewUniform, false, new Float32Array(pvMatrix));	
+		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+		//----
+		
+		//redraw cube
+		var temp=mat4.create();
+		gl.uniformMatrix4fv(shaderProgram.transformationUniform, false, new Float32Array(temp)); 
+		gl.drawElements(gl.TRIANGLES,indexBuffer.numberOfItems,gl.UNSIGNED_SHORT, 0);
+		//----
+	}
+	
+	function startup() {
+		canvas = document.getElementById("myGLCanvas"); 
+		var minDimension=Math.min(window.innerWidth,window.innerHeight); 
+		canvas.width=0.9*minDimension; 
+		canvas.height=0.9*minDimension; 
+		gl = WebGLDebugUtils.makeDebugContext(createGLContext(canvas)); 
+		setupShaders(); 
+		setupBuffers(); 
+		gl.clearColor(0, 0.5, 0, 1.0); 
+		
+		gl.enable(gl.DEPTH_TEST); 
+			
+		draw(); 
+	}
+	
+	function startAnim() {
+		if (!requestId)
+			anim();
+	}
+
+	function anim() {
+		requestId = window.requestAnimationFrame(anim);
+		redraw();
+	}
+
+	function stopAnim() {
+		window.cancelAnimationFrame(requestId);
+		requestId = 0;
+	}
+</script>
+</head>
+
+<body onload="startup()">
+<canvas id="myGLCanvas" >
+</canvas>
+<p>
+Camera View: <input type="text" id="camView" value="50"> <br>
+Camera Distance: <input type="text" id="cameraDistance" value="1"><br>
+
+<form>
+  <input type="radio" name="dist" id="1"> Left-Bottom-Back<br>
+  <input type="radio" name="dist" id="2"> Left-Bottom-Front<br>
+  <input type="radio" name="dist" id="3"> Left-Top-Back<br>
+  <input type="radio" name="dist" id="4"> Left-Top-Front<br>
+  <input type="radio" name="dist" id="5"> Right-Bottom-Back<br>
+  <input type="radio" name="dist" id="6"> Right-Bottom-Front<br>
+  <input type="radio" name="dist" id="7"> Right-Top-Back<br>
+  <input type="radio" name="dist" id="8"> Right-Top-Front<br>
+</form>
+<br>
+<button onClick=startAnim()>Start</button>
+<button onClick=stopAnim()>Stop</button>
+</p>
+</body>
+</html>
